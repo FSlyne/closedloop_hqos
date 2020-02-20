@@ -108,16 +108,18 @@ void qos_broker(float N[], float Wtin[], float XSin, float Remain[], float * XSo
  typedef struct  {
     float CIR;
     float EIR;
+    float Enom; // Nominal EIR
 } ONT;
 
-void ont_init(ONT* self, float CIR, float EIR ) {
+void ont_init(ONT* self, float CIR, float EIR, float Enom ) {
     self->CIR=CIR;
     self->EIR=EIR;
+    self->Enom=Enom; 
 }
 
-ONT* ont_create(float CIR, float EIR){
+ONT* ont_create(float CIR, float EIR, float Enom){
     ONT* obj=(ONT*) malloc(sizeof(ONT));
-    ont_init(obj, CIR, EIR);
+    ont_init(obj, CIR, EIR, Enom);
     return obj;
 }
 
@@ -133,7 +135,7 @@ void ont_update(ONT* self, float ZiHP, float ZiLP, float * XiHP, float * XiLP,
     float XSGreen1=0.0, XSYellow1=0.0;
     float GiHP=0.0, YiHP=0.0, GiLP=0.0, YiLP=0.0;
     C=self->CIR+RiHP-*XSG;
-    E=self->EIR+RiLP-*XSY;  // Iterative Calculations
+    E=self->Enom+RiLP-*XSY;  // Iterative Calculations
     trtcm(ZiHP, C, E, &GiHP, &YiHP, &XSGreen1, &XSYellow1);
     trtcm(ZiLP, XSGreen1, XSYellow1, &GiLP, &YiLP, XSG, XSY);
     *XiHP=GiHP+YiHP;
@@ -157,7 +159,7 @@ void vno_init(VNO* self, float CIR[], float PIR[], float linerate, int ONTnum ) 
     
     calc_weight(CIR, self->Wtin, ONTnum);
     for (int i=0; i<ONTnum; i++) {
-        self->ont[i]=ont_create(CIR[i],E*self->Wtin[i]);
+        self->ont[i]=ont_create(CIR[i],PIR[i]-CIR[i], E*self->Wtin[i]);
     }
 }
 
@@ -186,12 +188,12 @@ void vno_update(VNO* self, float ZiHP[], float ZiLP[], float XiHP[], float XiLP[
 
     for (int j=0; j<2; j++) {
          XStot=0;
-    for (int i=0; i<self->ONTnum; i++) {
-      ont_update(self->ont[i], ZiHP[i], ZiLP[i], &XiHP[i], &XiLP[i], &XSG[i], &XSY[i], 0, allocated[i]);
-      needs[i]=ZiHP[i]+ZiLP[i]-(XiHP[i]+XiLP[i]);
-      XS[i]=XSG[i]+XSY[i];
-      XStot+=XS[i];      
-    }
+         for (int i=0; i<self->ONTnum; i++) {
+           ont_update(self->ont[i], ZiHP[i], ZiLP[i], &XiHP[i], &XiLP[i], &XSG[i], &XSY[i], 0, allocated[i]);
+           needs[i]=ZiHP[i]+ZiLP[i]-(XiHP[i]+XiLP[i]);
+           XS[i]=XSG[i]+XSY[i];
+           XStot+=XS[i];      
+         }
     qos_broker(needs, self->Wtin, XStot+XSin, allocated, XSout, self->ONTnum);
     }
     return;
@@ -200,8 +202,8 @@ void vno_update(VNO* self, float ZiHP[], float ZiLP[], float XiHP[], float XiLP[
 
 int main () {
 
-    float ZiHP[] = {12,10,8,6};
-    float ZiLP[] = {4,4,4,12};
+    float ZiHP[] = {4,4,4,4};
+    float ZiLP[] = {4,4,4,4};
     float XiHP[] = {0,0,0,0};
     float XiLP[] = {0,0,0,0};
 
@@ -216,5 +218,7 @@ int main () {
     
     for (int i=0; i<ONTnum; i++){
         printf("Xi :%.3f %.3f\n", XiHP[i], XiLP[i] );
-    }   
+    }
+    
+    printf("Excess in %.3f, out %.3f\n", XSin, XSout);
 }
