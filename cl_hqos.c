@@ -6,6 +6,7 @@
 #define max(a,b)            (((a) > (b)) ? (a) : (b))
 #endif
 
+
 void dotproduct(float X[], float Y[], float *R, int L) {
     *R=0.0;
     for (int i=0; i<L; i++){
